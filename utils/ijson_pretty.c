@@ -28,18 +28,22 @@ static void print_indent(
     if (end) BUFFER[indent - 1] = '\t';
 }
 
-static void print_pretty(
+static struct ijnode * print_pretty(
     int fd, struct ijnode * node, uint8_t * data,
     unsigned indent1, unsigned indent2, char start1, char start2
 ) {
-    if (node->type == IJ_OBJECT) {
+    if (node->type_and_next_node & IJ_OBJECT) {
         print_indent(fd, indent1, start1, start2, 0);
-        struct ijnode * child, * end = node + node->next_node;
+        struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
         char sep = '{';
-        for (child = node + 1; child != end; child += child->next_node) {
-            print_pretty(fd, child, data, indent2 + 1, indent2 + 1, sep, '\n');
-            child += child->next_node;
-            print_pretty(fd, child, data, 0, indent2 + 1, ':', ' ');
+        for (child = node + 1; child != end;) {
+            data += 1;
+            child = print_pretty(
+                fd, child, data, indent2 + 1, indent2 + 1, sep, '\n'
+            );
+            data += child->length_in_bytes + 1;
+            child = print_pretty(fd, child, data, 0, indent2 + 1, ':', ' ');
+            data += child->length_in_bytes;
             sep = ',';
         }
         if (sep == '{') {
@@ -47,12 +51,15 @@ static void print_pretty(
         } else {
             print_indent(fd, indent2, '\n', 0, '}');
         }
-    } else if (node->type == IJ_ARRAY) {
+        return end;
+    } else if (node->type_and_next_node == IJ_ARRAY) {
         print_indent(fd, indent1, start1, start2, 0);
-        struct ijnode * child, * end = node + node->next_node;
+        struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
         char sep = '[';
-        for (child = node + 1; child != end; child += child->next_node) {
-            print_pretty(fd, child, data, indent2 + 1, indent2 + 1, sep, '\n');
+        for (child = node + 1; child != end;) {
+            data += 1;
+            child = print_pretty(fd, child, data, indent2 + 1, indent2 + 1, sep, '\n');
+            data += child->length_in_bytes;
             sep = ',';
         }
         if (sep == '[') {
@@ -60,9 +67,11 @@ static void print_pretty(
         } else {
             print_indent(fd, indent2, '\n', 0, ']');
         }
+        return end;
     } else {
         print_indent(fd, indent1, start1, start2, 0);
-        write(fd, data + node->start_offset, node->end_offset - node->start_offset);
+        write(fd, data, node->length_in_bytes);
+        return node + 1;
     }
 }
 
@@ -80,11 +89,12 @@ int main(int argc, char *argv[]) {
     size_t compact_length = ijson_compact(
         data_buffer, data_length, data_buffer
     );
-    size_t nodes_length = ijson_parse_max_output(compact_length);
+    size_t nodes_length = ijson_parse_max_output_length(compact_length);
     struct ijnode * nodes = (struct ijnode *) calloc(
         nodes_length, sizeof(struct ijnode)
     );
-    if (ijson_parse(data_buffer, data_length, nodes, nodes_length) < 0) {
+    uint32_t * stack = (uint32_t *) calloc(nodes_length, sizeof(uint32_t));
+    if (ijson_parse(data_buffer, data_length, nodes, stack) < 0) {
         perror("Error parsing JSON");
         return 1;
     }
