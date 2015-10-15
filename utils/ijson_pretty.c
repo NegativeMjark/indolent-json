@@ -2,6 +2,9 @@
 #include "indolentjson/parse.h"
 #include "readfile.c"
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 static char BUFFER[4096];
 
@@ -37,13 +40,16 @@ static struct ijnode * print_pretty(
         struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
         char sep = '{';
         for (child = node + 1; child != end;) {
-            data += 1;
+            uint8_t * child_data = data + 1;
+            data = child_data + child->length_in_bytes;
             child = print_pretty(
-                fd, child, data, indent2 + 1, indent2 + 1, sep, '\n'
+                fd, child, child_data, indent2 + 1, indent2 + 1, sep, '\n'
             );
-            data += child->length_in_bytes + 1;
-            child = print_pretty(fd, child, data, 0, indent2 + 1, ':', ' ');
-            data += child->length_in_bytes;
+            child_data = data + 1;
+            data = child_data + child->length_in_bytes;
+            child = print_pretty(
+                fd, child, child_data, 0, indent2 + 1, ':', ' '
+            );
             sep = ',';
         }
         if (sep == '{') {
@@ -52,14 +58,16 @@ static struct ijnode * print_pretty(
             print_indent(fd, indent2, '\n', 0, '}');
         }
         return end;
-    } else if (node->type_and_next_node == IJ_ARRAY) {
+    } else if (node->type_and_next_node & IJ_ARRAY) {
         print_indent(fd, indent1, start1, start2, 0);
         struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
         char sep = '[';
         for (child = node + 1; child != end;) {
-            data += 1;
-            child = print_pretty(fd, child, data, indent2 + 1, indent2 + 1, sep, '\n');
-            data += child->length_in_bytes;
+            uint8_t * child_data = data + 1;
+            data = child_data + child->length_in_bytes;
+            child = print_pretty(
+                fd, child, child_data, indent2 + 1, indent2 + 1, sep, '\n'
+            );
             sep = ',';
         }
         if (sep == '[') {
@@ -80,6 +88,9 @@ int main(int argc, char *argv[]) {
     memset(BUFFER, '\t', sizeof(BUFFER));
     int input_fd = STDIN_FILENO;
     int output_fd = STDOUT_FILENO;
+    if (argc > 1) {
+        input_fd = open(argv[1], O_RDONLY);
+    }
     uint8_t * data_buffer;
     ssize_t data_length = read_file(input_fd, &data_buffer);
     if (data_length < 0) {
@@ -94,11 +105,14 @@ int main(int argc, char *argv[]) {
         nodes_length, sizeof(struct ijnode)
     );
     uint32_t * stack = (uint32_t *) calloc(nodes_length, sizeof(uint32_t));
-    if (ijson_parse(data_buffer, data_length, nodes, stack) < 0) {
+    if (ijson_parse(
+        data_buffer, data_length, nodes, nodes_length, stack, nodes_length
+    ) == (size_t)(-1)) {
         perror("Error parsing JSON");
         return 1;
     }
     print_pretty(output_fd, nodes, data_buffer, 0, 0, 0, 0);
     write(output_fd, "\n", 1);
+    return 0;
 }
 

@@ -37,14 +37,12 @@ size_t ijson_parse_max_output_length(size_t input_length);
 
 /**
  * Parse the JSON into an array of ijnodes. The input must be compact JSON
- * without any extra whitespace. The output buffer and stack must be large
+ * without any extra whitespace. The output buffer and stack should be large
  * enough to hold ijson_parse_max_output_length(input_length) entries.
- * On success returns the number of nodes in the output. On failure returns
- * (size_t)(-1). The value of (-1) is chosen such that users who don't
- * check the return value will get an allocation failure if they try to
- * resize the array to the returned size.
+ * On success returns 0. On failure returns(size_t)(-1).
  */
 size_t ijson_parse(
     uint8_t const * input, size_t input_length,
-    struct ijnode * output, uint32_t * stack
+    struct ijnode * output, size_t output_length,
+    uint32_t * stack, size_t stack_length
 );
