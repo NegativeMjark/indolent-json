@@ -24,6 +24,7 @@ static uint32_t read_hexdigit_4(
     hex <<= 8; hex |= *(++input);
     hex <<= 8; hex |= *(++input);
     hex -= 0x30303030;
+    hex &= 0x1F1F1F1F;
     unsigned mask = hex & 0x10101010;
     hex += mask >> 4;
     hex -= mask >> 1;
@@ -75,7 +76,7 @@ compact_string:
                     *(output++) = 'u';
                     *(output++) = '0';
                     *(output++) = '0';
-                    *(output++) = '0' + (input_char >> 8);
+                    *(output++) = '0' + (input_char >> 4);
                     *(output++) = "0123456789ABCDEF"[input_char & 0xF];
                     goto compact_string;
                 }
@@ -93,9 +94,10 @@ compact_string:
                     input_char &= 0x3FF;
                     input_char <<= 10;
                     input_char |= 0x3FF & read_hexdigit_4(input + 2);
+                    input_char += 0x10000;
                     input += 6;
                     *(output++) = 0xF0 | (input_char >> 18);
-                    *(output++) = 0x90 + ((input_char >> 12) & 0x3F);
+                    *(output++) = 0x80 | ((input_char >> 12) & 0x3F);
                     goto compact_string_output2;
                 }
             }
