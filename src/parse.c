@@ -31,7 +31,7 @@ parse_array:
     if (input == input_end) goto parse_error;
     input_char = *input;
     if (input_char == ']') {
-        ++input;
+        input++;
         goto parse_end;
     }
     goto parse_value;
@@ -41,7 +41,6 @@ parse_key:
     if (output == output_end) goto parse_error;
     input_char = *(input++);
     if (input_char == '}') goto parse_end;
-    output->type_and_next_node = IJ_STRING;
     node_start = input - 1;
     while (1) {
         if (input == input_end) goto parse_error;
@@ -66,9 +65,8 @@ parse_value:
 
     if (input_char == '{') {
         if (stack == stack_end) goto parse_error;
-        output->type_and_next_node = IJ_OBJECT;
-        output->length_in_bytes = input_end - input;
-        *(stack++) = (output_end - output) << 1;
+        output->length_in_bytes = input_end - input + 1;
+        *(stack++) = 1 | ((output_end - output) << 1);
         ++output;
         state = '}';
         goto parse_key;
@@ -76,16 +74,14 @@ parse_value:
 
     if (input_char == '[') {
         if (stack == stack_end) goto parse_error;
-        output->type_and_next_node = IJ_ARRAY;
-        output->length_in_bytes = input_end - input;
-        *(stack++) = 1 | ((output_end - output) << 1);
+        output->length_in_bytes = input_end - input + 1;
+        *(stack++) = (output_end - output) << 1;
         ++output;
         state = ']';
         goto parse_array;
     }
 
     if (input_char == '\"') {
-        output->type_and_next_node = IJ_STRING;
         while (1) {
             if (input == input_end) goto parse_error;
             input_char = *(input++);
@@ -100,15 +96,6 @@ parse_value:
         if (input == input_end) goto parse_error;
         input_char = *(input++);
     } else {
-        if (input_char == 't') {
-            output->type_and_next_node = IJ_TRUE;
-        } else if (input_char = 'f') {
-            output->type_and_next_node = IJ_FALSE;
-        } else if (input_char = 'n') {
-            output->type_and_next_node = IJ_NULL;
-        } else {
-            output->type_and_next_node = IJ_NUMBER;
-        }
         while(1) {
             if (input == input_end) goto parse_error;
             input_char = *(input++);
@@ -125,7 +112,7 @@ parse_end:
     } else {
         stack--;
         struct ijnode * node = output_end - ((*stack) >> 1);
-        node->type_and_next_node |= (output - node) << 2;
+        node->children = output - node - 1;
         node->length_in_bytes -= input_end - input;
         state = ']' | (((*stack) & 1) << 5);
         if (stack == stack_start) return 0;

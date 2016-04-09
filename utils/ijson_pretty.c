@@ -35,9 +35,9 @@ static struct ijnode * print_pretty(
     int fd, struct ijnode * node, uint8_t * data,
     unsigned indent1, unsigned indent2, char start1, char start2
 ) {
-    if (node->type_and_next_node & IJ_OBJECT) {
+    if (node->children && *data == '{') {
         print_indent(fd, indent1, start1, start2, 0);
-        struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
+        struct ijnode * child, * end = node + node->children + 1;
         char sep = '{';
         for (child = node + 1; child != end;) {
             uint8_t * child_data = data + 1;
@@ -52,15 +52,11 @@ static struct ijnode * print_pretty(
             );
             sep = ',';
         }
-        if (sep == '{') {
-            write(fd, "{}", 2);
-        } else {
-            print_indent(fd, indent2, '\n', 0, '}');
-        }
+        print_indent(fd, indent2, '\n', 0, '}');
         return end;
-    } else if (node->type_and_next_node & IJ_ARRAY) {
+    } else if (node->children) {
         print_indent(fd, indent1, start1, start2, 0);
-        struct ijnode * child, * end = node + (node->type_and_next_node >> 2);
+        struct ijnode * child, * end = node + node->children + 1;
         char sep = '[';
         for (child = node + 1; child != end;) {
             uint8_t * child_data = data + 1;
@@ -70,11 +66,7 @@ static struct ijnode * print_pretty(
             );
             sep = ',';
         }
-        if (sep == '[') {
-            write(fd, "[]", 2);
-        } else {
-            print_indent(fd, indent2, '\n', 0, ']');
-        }
+        print_indent(fd, indent2, '\n', 0, ']');
         return end;
     } else {
         print_indent(fd, indent1, start1, start2, 0);
@@ -106,7 +98,7 @@ int main(int argc, char *argv[]) {
     );
     uint32_t * stack = (uint32_t *) calloc(nodes_length, sizeof(uint32_t));
     if (ijson_parse(
-        data_buffer, data_length, nodes, nodes_length, stack, nodes_length
+        data_buffer, compact_length, nodes, nodes_length, stack, nodes_length
     ) == (size_t)(-1)) {
         perror("Error parsing JSON");
         return 1;

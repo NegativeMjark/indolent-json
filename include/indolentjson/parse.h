@@ -1,28 +1,19 @@
 #include <stdint.h>
 #include <stddef.h>
 
-static const uint32_t IJ_ARRAY  = 0x01;
-static const uint32_t IJ_OBJECT = 0x02;
-static const uint32_t IJ_STRING = 0x04;
-static const uint32_t IJ_NUMBER = 0x08;
-static const uint32_t IJ_TRUE   = 0x10;
-static const uint32_t IJ_FALSE  = 0x20;
-static const uint32_t IJ_NULL   = 0x40;
-
 /**
  * Each node represents a JSON object, array or scalar.
  * The first node in a JSON object or array starts 1 byte after the
  * start of the object or array. Each subsequent node starts 1 byte
  * after the end of the previous node.
- * If the node is a JSON object or array then the top 30 bits of
- * type_and_next_node encode the offset from this node to the node
- * after the end of the object or array. The nodes inside the object
- * or array immediately follow this node.
+ * If the node is a JSON object or array then children gives the number
+ * of child nodes this node has. The nodes inside the object or array
+ * immediately follow this node.
  * The length_in_bytes gives the number of bytes needed to encode this
  * JSON object, array or scaler.
  */
 struct ijnode {
-    uint32_t type_and_next_node;
+    uint32_t children;
     uint32_t length_in_bytes;
 };
 
